@@ -2,100 +2,89 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-
-public class RubyController : MonoBehaviour
+public class EnemyController : MonoBehaviour
 {
-    public float speed = 3.0f;
-    
-    public int maxHealth = 5;
-    
-    public GameObject projectilePrefab;
-    
-    public int health { get { return currentHealth; }}
-    int currentHealth;
-    
-    public float timeInvincible = 2.0f;
-    bool isInvincible;
-    float invincibleTimer;
-    
-    Rigidbody2D rigidbody2d;
-    float horizontal;
-    float vertical;
-    
+    public float speed;
+    public bool vertical;
+    public float changeTime = 3.0f;
+
+    public ParticleSystem smokeEffect;
+
+    Rigidbody2D rigidbody2D;
+    float timer;
+    int direction = 1;
+    bool broken = true;
+
     Animator animator;
-    Vector2 lookDirection = new Vector2(1,0);
-    
+
     // Start is called before the first frame update
     void Start()
     {
-        rigidbody2d = GetComponent<Rigidbody2D>();
+        rigidbody2D = GetComponent<Rigidbody2D>();
+        timer = changeTime;
         animator = GetComponent<Animator>();
-        
-        currentHealth = maxHealth;
     }
 
-    // Update is called once per frame
     void Update()
     {
-        horizontal = Input.GetAxis("Horizontal");
-        vertical = Input.GetAxis("Vertical");
-        
-        Vector2 move = new Vector2(horizontal, vertical);
-        
-        if(!Mathf.Approximately(move.x, 0.0f) || !Mathf.Approximately(move.y, 0.0f))
+        //remember ! inverse the test, so if broken is true !broken will be false and return won’t be executed.
+        if(!broken)
         {
-            lookDirection.Set(move.x, move.y);
-            lookDirection.Normalize();
+            return;
         }
-        
-        animator.SetFloat("Look X", lookDirection.x);
-        animator.SetFloat("Look Y", lookDirection.y);
-        animator.SetFloat("Speed", move.magnitude);
-        
-        if (isInvincible)
+
+        timer -= Time.deltaTime;
+
+        if (timer < 0)
         {
-            invincibleTimer -= Time.deltaTime;
-            if (invincibleTimer < 0)
-                isInvincible = false;
-        }
-        
-        if(Input.GetKeyDown(KeyCode.C))
-        {
-            Launch();
+            direction = -direction;
+            timer = changeTime;
         }
     }
-    
+
     void FixedUpdate()
     {
-        Vector2 position = rigidbody2d.position;
-        position.x = position.x + speed * horizontal * Time.deltaTime;
-        position.y = position.y + speed * vertical * Time.deltaTime;
-
-        rigidbody2d.MovePosition(position);
-    }
-
-    public void ChangeHealth(int amount)
-    {
-        if (amount < 0)
+        //remember ! inverse the test, so if broken is true !broken will be false and return won’t be executed.
+        if(!broken)
         {
-            if (isInvincible)
-                return;
-            
-            isInvincible = true;
-            invincibleTimer = timeInvincible;
+            return;
         }
-        
-        currentHealth = Mathf.Clamp(currentHealth + amount, 0, maxHealth);
-        Debug.Log(currentHealth + "/" + maxHealth);
+
+        Vector2 position = rigidbody2D.position;
+
+        if (vertical)
+        {
+            position.y = position.y + Time.deltaTime * speed * direction;
+            animator.SetFloat("Move X", 0);
+            animator.SetFloat("Move Y", direction);
+        }
+        else
+        {
+            position.x = position.x + Time.deltaTime * speed * direction;
+            animator.SetFloat("Move X", direction);
+            animator.SetFloat("Move Y", 0);
+        }
+
+        rigidbody2D.MovePosition(position);
     }
-    
-    void Launch()
+
+    void OnCollisionEnter2D(Collision2D other)
     {
-        GameObject projectileObject = Instantiate(projectilePrefab, rigidbody2d.position + Vector2.up * 0.5f, Quaternion.identity);
+        RubyController player = other.gameObject.GetComponent<RubyController >();
 
-        Projectile projectile = projectileObject.GetComponent<Projectile>();
-        projectile.Launch(lookDirection, 300);
+        if (player != null)
+        {
+            player.ChangeHealth(-1);
+        }
+    }
+//Public because we want to call it from elsewhere like the projectile script
+    public void Fix()
+    {
+        broken = false;
+        rigidbody2D.simulated = false;
+        //optional if you added the fixed animation
+        animator.SetTrigger("Fixed");
 
-        animator.SetTrigger("Launch");
+        smokeEffect.Stop();
     }
 }
